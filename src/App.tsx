@@ -102,7 +102,7 @@ export default function App() {
           title={t.totalSurgeries} 
           value={totalCount.toLocaleString()} 
           icon={<Activity className="w-6 h-6 text-[var(--accent)]" />} 
-          trend="+12.4%"
+          trend={t.positiveTrend}
           color="accent"
           lang={lang}
         />
@@ -110,7 +110,7 @@ export default function App() {
           title={t.majorSurgeries} 
           value={surgeryTypeData[0].value.toLocaleString()} 
           icon={<Scissors className="w-6 h-6 text-orange-400" />} 
-          trend="+18.1%"
+          trend={t.positiveTrend}
           color="orange"
           lang={lang}
         />
@@ -118,7 +118,7 @@ export default function App() {
           title={t.minorSurgeries} 
           value={surgeryTypeData[1].value.toLocaleString()} 
           icon={<List className="w-6 h-6 text-emerald-400" />} 
-          trend="+8.5%"
+          trend={t.stableTrend}
           color="emerald"
           lang={lang}
         />
@@ -171,11 +171,12 @@ export default function App() {
 
   const SurgeryTypeAnalysis = ({ type }: { type: SurgeryType }) => {
     const data = allData.filter(d => d.type === type);
+    const [compareYear1, setCompareYear1] = useState(years[1]);
+    const [compareYear2, setCompareYear2] = useState(years[2] || years[1]);
     
     const yearlyBreakdown = useMemo(() => {
-      const years = [2022, 2023, 2024, 2025];
-      return years.map(y => {
-        const yearData = data.filter(d => d.year === y);
+      return years.slice(1).map(y => {
+        const yearData = data.filter(d => d.year === parseInt(y));
         return {
           year: y.toString(),
           total: yearData.reduce((acc, curr) => acc + curr.count, 0)
@@ -183,19 +184,87 @@ export default function App() {
       });
     }, [data]);
 
-    const monthlyHeatmap = useMemo(() => {
-      return Array.from({ length: 12 }, (_, i) => i + 1).map(m => {
-        const monthData = filteredData.filter(d => d.month === m && d.type === type);
-        return {
-          name: monthNames[m - 1],
-          value: monthData.reduce((acc, curr) => acc + curr.count, 0)
-        };
+    const comparisonData = useMemo(() => {
+      return monthNames.map((name, i) => {
+        const m = i + 1;
+        const v1 = data.filter(d => d.year === parseInt(compareYear1) && d.month === m).reduce((a, b) => a + b.count, 0);
+        const v2 = data.filter(d => d.year === parseInt(compareYear2) && d.month === m).reduce((a, b) => a + b.count, 0);
+        return { name, [compareYear1]: v1, [compareYear2]: v2 };
       });
-    }, [filteredData, type]);
+    }, [data, compareYear1, compareYear2]);
+
+    const allYearsComparisonData = useMemo(() => {
+      return monthNames.map((name, i) => {
+        const m = i + 1;
+        const entry: any = { name };
+        years.slice(1).forEach(y => {
+          entry[y] = data.filter(d => d.year === parseInt(y) && d.month === m).reduce((a, b) => a + b.count, 0);
+        });
+        return entry;
+      });
+    }, [data]);
 
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="space-y-8">
+        {/* Filters for dynamic comparison */}
+        <div className="flex flex-wrap gap-4 items-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{lang === 'ar' ? 'مقارنة السنوات:' : 'Compare Years:'}</span>
+          <select 
+            value={compareYear1} 
+            onChange={(e) => setCompareYear1(e.target.value)}
+            className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:ring-2 ring-[var(--accent)]/20"
+          >
+            {years.slice(1).map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <span className="text-slate-300 font-bold">VS</span>
+          <select 
+            value={compareYear2} 
+            onChange={(e) => setCompareYear2(e.target.value)}
+            className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:ring-2 ring-[var(--accent)]/20"
+          >
+            {years.slice(1).map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <ChartCard title={lang === 'ar' ? `مقارنة: ${compareYear1} مقابل ${compareYear2}` : `Comparison: ${compareYear1} vs ${compareYear2}`}>
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={comparisonData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }} />
+                <Legend iconType="circle" />
+                <Bar dataKey={compareYear1} fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey={compareYear2} fill="#f59e0b" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard title={t.opsIndicator}>
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={allYearsComparisonData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }} />
+                <Legend iconType="circle" />
+                {years.slice(1).map((y, i) => (
+                  <Line 
+                    key={y} 
+                    type="monotone" 
+                    dataKey={y} 
+                    stroke={i === 0 ? 'var(--accent)' : i === 1 ? '#10b981' : i === 2 ? '#f59e0b' : '#ef4444'} 
+                    strokeWidth={3} 
+                    dot={{ r: 3 }}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <ChartCard title={t.yearlyAnalysis}>
             <ResponsiveContainer width="100%" height={350}>
               <BarChart data={yearlyBreakdown}>
@@ -209,12 +278,12 @@ export default function App() {
           </ChartCard>
           <ChartCard title={t.monthlyAnalysis}>
             <ResponsiveContainer width="100%" height={350}>
-              <AreaChart data={monthlyHeatmap}>
+              <AreaChart data={allYearsComparisonData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="name" fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} />
-                <Area type="monotone" dataKey="value" stroke={type === 'Major' ? '#f97316' : 'var(--accent)'} fill={type === 'Major' ? '#f97316' : 'var(--accent)'} fillOpacity={0.1} strokeWidth={4} />
+                <Area type="monotone" dataKey={years[years.length-1]} stroke={type === 'Major' ? '#f97316' : 'var(--accent)'} fill={type === 'Major' ? '#f97316' : 'var(--accent)'} fillOpacity={0.1} strokeWidth={4} />
               </AreaChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -224,29 +293,104 @@ export default function App() {
   };
 
   const MonthlyAnalysis = () => {
+    const [compareYear1, setCompareYear1] = useState(years[1]);
+    const [compareYear2, setCompareYear2] = useState(years[2] || years[1]);
+
     const dataByMonth = Array.from({ length: 12 }, (_, i) => i + 1).map(month => {
       const monthData = filteredData.filter(d => d.month === month);
       return {
         name: monthNames[month - 1],
-        total: monthData.reduce((acc, curr) => acc + curr.count, 0)
+        total: monthData.reduce((acc, curr) => acc + curr.count, 0),
       };
     });
 
+    const comparisonData = useMemo(() => {
+      return monthNames.map((name, i) => {
+        const m = i + 1;
+        const baseData = filters.type === 'all' ? allData : allData.filter(d => d.type === filters.type);
+        const v1 = baseData.filter(d => d.year === parseInt(compareYear1) && d.month === m).reduce((a, b) => a + b.count, 0);
+        const v2 = baseData.filter(d => d.year === parseInt(compareYear2) && d.month === m).reduce((a, b) => a + b.count, 0);
+        return { name, [compareYear1]: v1, [compareYear2]: v2 };
+      });
+    }, [filters.type, compareYear1, compareYear2]);
+
+    const allYearsComparisonData = useMemo(() => {
+      return monthNames.map((name, i) => {
+        const m = i + 1;
+        const entry: any = { name };
+        const baseData = filters.type === 'all' ? allData : allData.filter(d => d.type === filters.type);
+        years.slice(1).forEach(y => {
+          entry[y] = baseData.filter(d => d.year === parseInt(y) && d.month === m).reduce((a, b) => a + b.count, 0);
+        });
+        return entry;
+      });
+    }, [filters.type]);
+
     return (
       <div className="space-y-6">
-        <div className="flex bg-slate-100 p-1 rounded-xl w-fit">
-           {(['all', 'Major', 'Minor'] as const).map(type => (
-             <button
-               key={type}
-               onClick={() => setFilters(prev => ({ ...prev, type }))}
-               className={cn(
-                 "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
-                 filters.type === type ? "bg-white text-slate-900 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-800"
-               )}
-             >
-               {type === 'all' ? t.all : (type === 'Major' ? t.major : t.minor)}
-             </button>
-           ))}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex bg-slate-100 p-1 rounded-xl w-fit">
+             {(['all', 'Major', 'Minor'] as const).map(type => (
+               <button
+                 key={type}
+                 onClick={() => setFilters(prev => ({ ...prev, type }))}
+                 className={cn(
+                   "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
+                   filters.type === type ? "bg-white text-slate-900 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-800"
+                 )}
+               >
+                 {type === 'all' ? t.all : (type === 'Major' ? t.major : t.minor)}
+               </button>
+             ))}
+          </div>
+
+          <div className="flex gap-4 items-center bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{lang === 'ar' ? 'اختيار سنوات المقارنة:' : 'Compare:'}</span>
+            <select value={compareYear1} onChange={(e) => setCompareYear1(e.target.value)} className="text-xs font-bold bg-transparent outline-none">
+              {years.slice(1).map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <select value={compareYear2} onChange={(e) => setCompareYear2(e.target.value)} className="text-xs font-bold bg-transparent outline-none">
+              {years.slice(1).map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <ChartCard title={lang === 'ar' ? 'مقارنة بين سنتين مختارتين' : 'Selected Years Comparison'}>
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={comparisonData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }} />
+                <Legend iconType="circle" />
+                <Bar dataKey={compareYear1} fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey={compareYear2} fill="#94a3b8" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard title={t.opsIndicator}>
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={allYearsComparisonData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }} />
+                <Legend iconType="circle" />
+                {years.slice(1).map((y, i) => (
+                  <Line 
+                    key={y} 
+                    type="monotone" 
+                    dataKey={y} 
+                    stroke={i === 0 ? 'var(--accent)' : i === 1 ? '#10b981' : i === 2 ? '#f59e0b' : '#ef4444'} 
+                    strokeWidth={4} 
+                    dot={{ r: 4 }}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartCard>
         </div>
 
         <ChartCard title={t.monthlyAnalysis}>
@@ -294,7 +438,10 @@ export default function App() {
               </div>
               <div>
                 <h1 className="font-extrabold text-lg tracking-tight leading-none text-slate-900">{t.appName}</h1>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1.5">{lang === 'ar' ? 'نظام التحليلات' : 'Analytics Cloud'}</p>
+                <div className="flex flex-col mt-2 gap-1">
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-none">{t.healthPlanning}</p>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-none">{t.healthInfo}</p>
+                </div>
               </div>
             </div>
 
@@ -415,11 +562,10 @@ export default function App() {
               </motion.div>
             </AnimatePresence>
 
-            <footer className="mt-20 flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] pb-10">
-               <div className="flex gap-8">
-                 <span className="hover:text-slate-900 cursor-pointer transition-colors">Safety</span>
-                 <span className="hover:text-slate-900 cursor-pointer transition-colors">Privacy</span>
-                 <span className="hover:text-slate-900 cursor-pointer transition-colors">System v.5.0</span>
+            <footer className="mt-20 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 text-[9px] text-slate-400 font-bold uppercase tracking-widest pb-10 border-t border-slate-100 pt-8">
+               <div className="flex flex-wrap gap-x-8 gap-y-2">
+                 <span className="text-slate-500">{t.healthPlanning}</span>
+                 <span className="text-slate-500">{t.healthInfo}</span>
                </div>
             </footer>
           </div>
@@ -431,8 +577,8 @@ export default function App() {
 
 function StatCard({ title, value, icon, trend, color = 'indigo', lang }: { title: string, value: string, icon: React.ReactNode, trend?: string, color?: string, lang: Language }) {
   const accentColor = color === 'emerald' ? 'text-emerald-600' : color === 'orange' ? 'text-orange-600' : color === 'accent' ? 'text-[var(--accent)]' : 'text-blue-600';
-  const barColor = color === 'emerald' ? 'bg-emerald-500' : color === 'orange' ? 'bg-orange-500' : color === 'accent' ? 'bg-[var(--accent)]' : 'bg-blue-600';
-  
+  const t = translations[lang];
+
   return (
     <div className="professional-card p-8 flex flex-col justify-between group overflow-hidden relative">
       <div className="flex items-center justify-between mb-8 relative z-10">
@@ -441,8 +587,10 @@ function StatCard({ title, value, icon, trend, color = 'indigo', lang }: { title
         </div>
         {trend && (
           <div className="flex flex-col items-end">
-             <span className={cn("text-xs font-black", accentColor)}>{trend}</span>
-             <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold mt-1">{lang === 'ar' ? 'مقارنة' : 'COMPARISON'}</span>
+             <div className={cn("px-3 py-1 rounded-full text-[10px] font-bold bg-slate-50 border border-slate-100", accentColor)}>
+               {trend}
+             </div>
+             <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold mt-2">{t.performanceStatus}</span>
           </div>
         )}
       </div>
@@ -450,20 +598,6 @@ function StatCard({ title, value, icon, trend, color = 'indigo', lang }: { title
       <div className="relative z-10">
         <h3 className="text-4xl font-extrabold tracking-tighter mb-2 text-slate-900">{value}</h3>
         <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">{title}</p>
-      </div>
-
-      <div className="mt-8 pt-6 border-t border-slate-100 relative z-10">
-        <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-           <span>{lang === 'ar' ? 'مستوى الدقة' : 'Accuracy Level'}</span>
-           <span className="text-slate-700">99.4%</span>
-        </div>
-        <div className="h-1.5 bg-slate-100 rounded-full mt-3 overflow-hidden">
-           <motion.div 
-             initial={{ width: 0 }}
-             animate={{ width: '85%' }}
-             className={cn("h-full rounded-full", barColor)}
-           />
-        </div>
       </div>
     </div>
   );
